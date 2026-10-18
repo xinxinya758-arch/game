@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>池核風解謎遊戲 - 水池深處的回音</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    
+    body {
+      background-color: #03080c;
+      color: #e0e1dd;
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 手機豎屏遊戲容器 */
+    #game-container {
+      width: 100vw;
+      height: 100vh;
+      max-width: 430px;
+      position: relative;
+      display: flex;
+      flex-direction: row;
+      border: 1px solid #1f3a4b;
+      overflow: hidden;
+      background-color: #0d1b2a;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    /* --- 豎向水位線 (最左側) --- */
+    #vertical-water-bar {
+      width: 16px;
+      height: 100%;
+      background: rgba(10, 25, 35, 0.85);
+      border-right: 2px solid #00b4d8;
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      z-index: 50;
+    }
+
+    #water-fill {
+      width: 100%;
+      height: 10%;
+      background: linear-gradient(0deg, rgba(0,180,216,0.9) 0%, rgba(144,224,239,0.6) 100%);
+      box-shadow: 0 0 10px #00b4d8;
+      transition: height 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    /* 主遊戲內容區 */
+    #main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: rgba(13, 27, 42, 0.45);
+    }
+
+    /* 頂部 UI */
+    #top-bar {
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 30;
+      background: rgba(5, 12, 18, 0.6);
+    }
+
+    .ui-btn {
+      background: rgba(13, 27, 42, 0.85);
+      color: #90e0ef;
+      border: 1px solid #00b4d8;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    #autosave-indicator {
+      font-size: 0.7rem;
+      color: #90e0ef;
+      background: rgba(0,0,0,0.6);
+      padding: 3px 6px;
+      border-radius: 3px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    /* 小配角氣泡區 */
+    #npc-area {
+      padding: 10px;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      z-index: 20;
+    }
+
+    .npc-bubble {
+      background: rgba(0, 180, 216, 0.2);
+      border: 1px dashed #48cae4;
+      color: #e0e1dd;
+      padding: 6px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      backdrop-filter: blur(2px);
+    }
+
+    /* 角色立繪區 */
+    #character-area {
+      flex: 1;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #character-sprite {
+      height: 80%;
+      max-width: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.8));
+    }
+
+    /* 對話框 */
+    #dialogue-box {
+      background: rgba(10, 20, 30, 0.92);
+      border-top: 2px solid #415a77;
+      padding: 12px 15px;
+      min-height: 85px;
+    }
+
+    #speaker-name {
+      color: #90e0ef;
+      font-weight: bold;
+      font-size: 0.9rem;
+      margin-bottom: 5px;
+    }
+
+    #dialogue-text {
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: #e0e1dd;
+    }
+
+    /* 選項列表 */
+    #options-container {
+      background: #0a141e;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .option-btn {
+      background: #1b263b;
+      color: #e0e1dd;
+      border: 1px solid #415a77;
+      padding: 10px 12px;
+      border-radius: 4px;
+      text-align: left;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .option-btn:active {
+      background: #00b4d8;
+      color: #000;
+    }
+
+    /* 首頁選單 UI (套用您提供的背景) */
+    #start-screen {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(180deg, rgba(8, 20, 29, 0.75) 0%, rgba(13, 31, 45, 0.3) 50%, rgba(5, 12, 18, 0.8) 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 60px 20px 40px 20px;
+      z-index: 100;
+    }
+
+    .title-box { text-align: center; margin-top: 20px; }
+    .title-main {
+      font-size: 1.8rem; color: #83c5be; letter-spacing: 3px;
+      text-shadow: 0 0 10px rgba(131, 197, 190, 0.6), 2px 2px 0px #000; margin-bottom: 8px;
+    }
+    .title-sub { font-size: 0.85rem; color: #64dfdf; letter-spacing: 4px; opacity: 0.8; }
+
+    .menu-box { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 30px; }
+    .menu-btn {
+      width: 80%; padding: 14px; background: rgba(13, 27, 42, 0.75); color: #e0e1dd;
+      border: 1px solid #48cae4; border-radius: 4px; font-size: 0.95rem; letter-spacing: 2px;
+      cursor: pointer; backdrop-filter: blur(4px); transition: all 0.2s ease;
+    }
+    .menu-btn:disabled { border-color: #354f52; color: #526760; background: rgba(10, 15, 20, 0.6); cursor: not-allowed; }
+
+    #name-input-box {
+      display: none; width: 85%; background: rgba(10, 22, 31, 0.9);
+      border: 1px solid #48cae4; padding: 20px; border-radius: 6px; text-align: center;
+    }
+    #name-input {
+      padding: 10px; width: 90%; margin: 15px 0; background: #0a141e;
+      border: 1px solid #778da9; color: #90e0ef; text-align: center; font-size: 1rem; border-radius: 4px; outline: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+
+  <!-- 豎向水位線 -->
+  <div id="vertical-water-bar">
+    <div id="water-fill"></div>
+  </div>
+
+  <!-- 主遊戲區域 -->
+  <div id="main-content">
+    <div id="top-bar">
+      <button class="ui-btn" onclick="openNotebook()">📖 線索筆記</button>
+      <div id="autosave-indicator">💾 已存檔</div>
+      <button class="ui-btn" onclick="location.reload()">🔄 回首頁</button>
+    </div>
+
+    <!-- 小配角氣泡點擊區 -->
+    <div id="npc-area"></div>
+
+    <!-- 角色立繪區 -->
+    <div id="character-area">
+      <img id="character-sprite" src="" alt="立繪" style="display:none;">
+    </div>
+
+    <!-- 對話框 -->
+    <div id="dialogue-box">
+      <div id="speaker-name">角色名</div>
+      <p id="dialogue-text">載入對話中...</p>
+    </div>
+
+    <!-- 選項按鈕區 -->
+    <div id="options-container"></div>
+  </div>
+
+  <!-- 開始介面 / 姓名輸入 (背景套用您上傳的圖片) -->
+  <div id="start-screen">
+    <div class="title-box">
+      <div class="title-main">水池深處的回音</div>
+      <div class="title-sub">POOLCORE ECHOES</div>
+    </div>
+
+    <div id="menu-buttons" class="menu-box">
+      <button id="continue-btn" class="menu-btn" onclick="loadGame()">繼續遊戲</button>
+      <button class="menu-btn" onclick="showNameInput()">新遊戲</button>
+    </div>
+
+    <div id="name-input-box">
+      <p style="color: #90e0ef; font-size: 0.85rem;">「在踏入池水前，告訴我你的名字：」</p>
+      <input type="text" id="name-input" placeholder="主人公的名字" maxlength="8">
+      <button class="menu-btn" style="width: 100%; margin-top: 5px;" onclick="startNewGame()">進入池核</button>
+    </div>
+
+    <div style="font-size: 0.7rem; color: #526760; letter-spacing: 1px;">POOLCORE ADVENTURE</div>
+  </div>
+
+</div>
+
+<script>
+  // --- 遊戲全局狀態 ---
+  let gameState = {
+    playerName: "",
+    currentStage: "stage0", // stage0, stage1, etc.
+    round: 1,
+    waterLevel: 10,
+    notebookClues: [],
+    endingPoints: { endingA: 0, endingC: 0 }
+  };
+
+  const SAVE_KEY = "POOLCORE_GAME_SAVE_V1";
+
+  // --- 初始化畫面 ---
+  window.onload = function() {
+    // 預設載入首頁背景圖[span_2](start_span)[span_2](end_span)
+    document.getElementById('game-container').style.backgroundImage = "url('71042.jpg')";[span_3](start_span)[span_3](end_span)
+    checkSaveFile();
+  };
+
+  function checkSaveFile() {
+    const savedData = localStorage.getItem(SAVE_KEY);
+    const continueBtn = document.getElementById('continue-btn');
+    if (savedData) {
+      continueBtn.disabled = false;
+      continueBtn.innerText = "繼續遊戲 (有存檔)";
+    } else {
+      continueBtn.disabled = true;
+      continueBtn.innerText = "繼續遊戲";
+    }
+  }
+
+  function saveGame() {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(gameState));
+    const indicator = document.getElementById('autosave-indicator');
+    indicator.style.opacity = '1';
+    setTimeout(() => { indicator.style.opacity = '0'; }, 1500);
+  }
+
+  function showNameInput() {
+    document.getElementById('menu-buttons').style.display = 'none';
+    document.getElementById('name-input-box').style.display = 'block';
+  }
+
+  function startNewGame() {
+    const name = document.getElementById('name-input').value.trim();
+    if (!name) { alert("請輸入你的名字！"); return; }
+    
+    gameState = {
+      playerName: name,
+      currentStage: "stage0",
+      round: 1,
+      waterLevel: 10,
+      notebookClues: [],
+      endingPoints: { endingA: 0, endingC: 0 }
+    };
+
+    saveGame();
+    document.getElementById('start-screen').style.display = 'none';
+    renderCurrentStage();
+  }
+
+  function loadGame() {
+    const savedData = localStorage.getItem(SAVE_KEY);
+    if (savedData) {
+      gameState = JSON.parse(savedData);
+      document.getElementById('start-screen').style.display = 'none';
+      renderCurrentStage();
+    }
+  }
+
+  // --- 關卡渲染控制器 ---
+  function renderCurrentStage() {
+    document.getElementById('water-fill').style.height = gameState.waterLevel + '%';
+    
+    if (gameState.currentStage === "stage0") {
+      renderStage0();
+    } else if (gameState.currentStage === "stage1") {
+      renderStage1();
+    }
+  }
+
+  // --- 關卡 0：新手教程 (夢) ---
+  function renderStage0() {
+    const speaker = document.getElementById('speaker-name');
+    const text = document.getElementById('dialogue-text');
+    const npcArea = document.getElementById('npc-area');
+
+    speaker.innerText = "夢";
+    
+    // 渲染小配角
+    npcArea.innerHTML = `
+      <div class="npc-bubble" onclick="addClue('［享受］', '小鴨子說這裡很溫暖愜意，但背脊隱隱有些發涼。')">🐤 黃色小鴨</div>
+      <div class="npc-bubble" onclick="addClue('［怪異］', '安詳的泳池邊為什麼會有一把危險的斧頭？')">🪓 斧頭</div>
+    `;
+
+    if (gameState.round === 1) {
+      text.innerText = `「親愛的 ${gameState.playerName}，這裡就是你以後會待的地方啦！是不是感覺很溫馨？」`;
+      renderOptions([
+        { text: "1. 你他媽到底是誰，我為什麼會在這裡！", correct: false, msg: "「嘿！講話放尊重點！」" },
+        { text: "2. 這裡看起來很溫柔，但那把斧頭…總覺得有點令人不安。", correct: true, msg: "「你會習慣這裡的。」" },
+        { text: "3. 太好了！那我可以在這裡一直睡下去嗎？", correct: false, msg: "「別想得太簡單了。」" }
+      ]);
+    } else if (gameState.round === 2) {
+      text.innerText = "「那麼…你想要繼續前進，還是留在原地呢？」";
+      renderOptions([
+        { text: "1. 與其留在此處，不如繼續前進。（進入第一關）", action: () => { gameState.currentStage = "stage1"; gameState.round = 1; saveGame(); renderCurrentStage(); } },
+        { text: "2. 這裡很安全，我不願嘗試往前走。（留在原地）", action: () => { alert("你選擇留在平靜的水池中…… [觸發結局 A：沉溺]"); location.reload(); } }
+      ]);
+    }
+  }
+
+  // --- 關卡 1：凌齊安 ---
+  function renderStage1() {
+    const speaker = document.getElementById('speaker-name');
+    const text = document.getElementById('dialogue-text');
+    const npcArea = document.getElementById('npc-area');
+
+    speaker.innerText = "凌齊安";
+    npcArea.innerHTML = `
+      <div class="npc-bubble" onclick="addClue('［被雨淋濕的約定］', '三年前四月的約定，因為突然的大雨而夭折。')">🎒 濕透的書包</div>
+      <div class="npc-bubble" onclick="addClue('［寄託心意的貓］', '項圈上寫著：小花，今天一定要幫我把信帶給他！')">🐱 戴花瓣的小貓</div>
+    `;
+
+    if (gameState.round === 1) {
+      text.innerText = "「別靠近我！這裡空氣黏糊糊的，到處都是濕氣…春天什麼的最讓人噁心了！」";
+      renderOptions([
+        { text: "1. 你是不是對花粉過敏，才這麼討厭春天的？", correct: false, msg: "「哈？少自以為是了！」" },
+        { text: "2. 你討厭的不是春天，而是三年前四月二十日那場大雨吧？", correct: true },
+        { text: "3. 濕答答的確實不舒服，要不去乾一點的地方？", correct: false, msg: "「這片池水根本沒有盡頭，你在說什麼廢話。」" }
+      ]);
+    } else if (gameState.round === 2) {
+      text.innerText = "「就算你知道了又怎樣？！全是那場大雨和小花的錯！」";
+      renderOptions([
+        { text: "1. 事情都過去三年了，你現在補交信也不遲。", correct: false, msg: "「補交？他早就搬家了！」" },
+        { text: "2. 大雨和小花只是藉口……你真正討厭的是逃跑的自己吧？", correct: true },
+        { text: "3. 那隻貓咪頭上還戴著花呢，牠一直在等你。", correct: false, msg: "「我……我根本沒有勇氣抱起牠……」" }
+      ]);
+    } else if (gameState.round === 3) {
+      text.innerText = "「這片積水好像開始退去了……但我該怎麼面對未來的雨？」";
+      renderOptions([
+        { text: "1. 牽著我的手，這次我們一起走過這場雨。（通關）", action: () => { alert("凌齊安解開了心結，帶着小貓與你一起邁向前方！[關卡 1 通關]"); location.reload(); } },
+        { text: "2. 如果害怕的話，就留在這裡吧。（沉溺）", action: () => { alert("凌齊安選擇在水池中與暴雨一同沉睡…… [觸發結局 A]"); location.reload(); } }
+      ]);
+    }
+  }
+
+  // --- 選項處理 ---
+  function renderOptions(options) {
+    const container = document.getElementById('options-container');
+    container.innerHTML = "";
+    
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = "option-btn";
+      btn.innerText = opt.text;
+      
+      btn.onclick = () => {
+        if (opt.action) {
+          opt.action();
+        } else if (opt.correct) {
+          gameState.round++;
+          saveGame();
+          renderCurrentStage();
+        } else {
+          gameState.waterLevel += 25;
+          if (opt.msg) alert(opt.msg);
+          
+          if (gameState.waterLevel >= 85) {
+            alert("水位過高，你被冷水淹沒了……關卡重置。");
+            gameState.waterLevel = 10;
+            gameState.round = 1;
+          }
+          saveGame();
+          renderCurrentStage();
+        }
+      };
+      container.appendChild(btn);
+    });
+  }
+
+  // --- 筆記本 ---
+  function addClue(title, detail) {
+    const clueStr = `${title}: ${detail}`;
+    if (!gameState.notebookClues.includes(clueStr)) {
+      gameState.notebookClues.push(clueStr);
+      saveGame();
+      alert(`記錄新線索：${title}`);
+    } else {
+      alert(`線索已記錄：\n${clueStr}`);
+    }
+  }
+
+  function openNotebook() {
+    const clues = gameState.notebookClues.length > 0 
+      ? gameState.notebookClues.join("\n\n")
+      : "目前尚未記錄任何線索。先點擊上方的小配角獲得線索吧！";
+    alert(`【${gameState.playerName || '主角'} 的線索筆記本】\n\n${clues}`);
+  }
+</script>
+</body>
+</html>
